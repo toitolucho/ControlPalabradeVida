@@ -1,0 +1,1101 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.2.4
+-- Dumped by pg_dump version 9.2.4
+-- Started on 2016-07-25 23:02:38
+
+SET statement_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+
+--
+-- TOC entry 183 (class 3079 OID 11727)
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- TOC entry 2039 (class 0 OID 0)
+-- Dependencies: 183
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET search_path = public, pg_catalog;
+
+--
+-- TOC entry 198 (class 1255 OID 42913)
+-- Name: obtener_reporte_asistencia(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION obtener_reporte_asistencia(codigo_proveedor_aux integer) RETURNS SETOF record
+    LANGUAGE plpgsql
+    AS $$
+DECLARE 
+	registro	RECORD;
+	sql 		text;
+	filtro		TEXT;
+	fecha_max	DATE;
+	fecha_min	DATE;
+	fecha_actual	DATE;
+BEGIN
+
+
+	select max(fecha_inicio), min(fecha_fin), CURRENT_DATE::DATE INTO fecha_max, fecha_min, fecha_actual
+	from eventos
+	where codigo_estado = 'A';
+	
+
+	sql = 'SELECT 
+		  p.codigo_proveedor, 
+		  p.nombre_proveedor, 
+		  p.estado_proveedor, 
+		  p.nit_proveedor, 
+		  p.descripcion
+		FROM 
+		  public.proveedores p
+		';
+	filtro = ' ';
+	IF codigo_proveedor_aux IS NOT NULL THEN
+		filtro = filtro || ' WHERE p.codigo_proveedor = ' || codigo_proveedor_aux::text || ' ';
+	END IF;
+
+	IF(filtro IS NOT NULL AND filtro <> ' ') THEN
+		
+		sql = sql || ' ' || filtro;
+	END IF;
+	
+	RAISE NOTICE ' SQL: (%)', sql;
+	
+	FOR registro IN EXECUTE sql
+	LOOP
+	RETURN next registro;
+	end loop;
+	RETURN;
+
+END;
+$$;
+
+
+ALTER FUNCTION public.obtener_reporte_asistencia(codigo_proveedor_aux integer) OWNER TO postgres;
+
+--
+-- TOC entry 199 (class 1255 OID 42940)
+-- Name: obtener_reporte_asistencia(integer, date, date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION obtener_reporte_asistencia(id_persona_aux integer, fecha_inicio_aux date, fecha_fin_aux date) RETURNS SETOF record
+    LANGUAGE plpgsql
+    AS $$
+DECLARE 
+	registro	RECORD;
+	sql 		text;
+	filtro		TEXT;
+	fecha_max	DATE;
+	fecha_min	DATE;
+	fecha_actual	DATE;
+BEGIN
+	IF (fecha_inicio_aux IS NULL OR  fecha_fin_aux IS NULL) THEN   
+		select min(fecha_inicio), max(fecha_fin), CURRENT_DATE::DATE INTO fecha_min, fecha_max, fecha_actual
+		from eventos
+		where codigo_estado = 'A';
+		fecha_max = CASE WHEN fecha_max IS NULL THEN '31/12/2016' ELSE fecha_max END;
+		fecha_min = CASE WHEN fecha_min IS NULL THEN '01/01/2016' ELSE fecha_min END;
+	ELSE
+		fecha_min = fecha_inicio_aux;
+		fecha_max = fecha_fin_aux;
+		SELECT CURRENT_DATE::DATE INTO fecha_actual;
+	END IF;
+	
+	
+	
+	sql = 'SELECT 		pea.fecha_registro, pea.hora_registro, 
+		pea.id_persona, CASE WHEN pea.tipo_ingreso = ''E'' THEN ''ENTRADA'' WHEN pea.tipo_ingreso = ''S'' THEN ''SALIDA'' ELSE NULL END AS tipo_ingreso, 
+		CASE WHEN pea.tipo_asistencia = ''A'' THEN ''ADELANTADO'' WHEN pea.tipo_asistencia = ''P'' THEN ''PUNTUAL'' WHEN pea.tipo_asistencia = ''R'' THEN ''RETRASO'' when dppe.id_evento is not null then ''PERMISO'' ELSE ''FALTA'' END AS tipo_asistencia, 
+		dias_asistencia.dia_semana, dias_asistencia.id_evento,
+		dias_asistencia.fecha, dias_asistencia.id_persona, dias_asistencia.Valido, dias_asistencia.nombre_Evento,
+		p.nombres || '' '' || p.apellidos as nombre_completo, dias_asistencia.dia
+	FROM personas_eventos_asistencia pea
+	RIGHT JOIN
+	(
+
+		SELECT TA3.*, EP1.id_persona
+		FROM
+		(
+		SELECT TA.*, Dias_Semana.*, CASE WHEN fecha BETWEEN e.fecha_inicio and e.fecha_fin then TRUE else FALSE END as Valido, e.nombre_evento
+		FROM
+		(
+			SELECT CURRENT_DATE+i as fecha, EXTRACT(ISODOW FROM  CURRENT_DATE+i) as dia_semana2
+			FROM generate_series(date ''' || fecha_min::text || '''-CURRENT_DATE,date ''' || fecha_max::text || '''-CURRENT_DATE) i
+		) TA
+		LEFT JOIN VDiasSemanaEvento AS Dias_Semana		
+		on TA.dia_semana2  = Dias_Semana.dia_semana
+		INNER JOIN eventos e
+		ON e.id_evento = Dias_Semana.id_evento
+-- 		WHERE e.id_evento = 2
+-- 		order by fecha
+		) TA3, eventos_personas EP1
+		where EP1.id_evento  = TA3.id_evento
+		order by  TA3.id_evento, TA3.fecha, EP1.id_persona
+
+	) dias_asistencia
+	on dias_asistencia.id_evento = pea.id_evento
+	and dias_asistencia.fecha = pea.fecha_registro
+	and pea.codigo_estado = ''U''
+	and pea.id_persona = dias_asistencia.id_persona
+	LEFT JOIN VDiasPermisosPersonasEventos dppe
+	ON dias_asistencia.fecha = dppe.fecha
+	and dias_asistencia.id_evento = dppe.id_evento
+	and dias_asistencia.id_persona = dppe.id_persona
+	LEFT JOIN Personas P
+	ON dias_asistencia.id_persona = P.id_persona
+	where valido = true
+ 	--and dppe.id_evento is null
+ 	and dias_asistencia.fecha <= ''' || fecha_actual::text || '''
+	 ';
+
+
+	filtro = ' ';
+	IF id_persona_aux IS NOT NULL THEN
+		filtro = filtro || ' AND p.id_persona = ' || id_persona_aux::text || ' ';
+	END IF;
+
+	IF(filtro IS NOT NULL AND filtro <> ' ') THEN
+		
+		sql = sql || ' ' || filtro;
+	END IF;
+	
+	RAISE NOTICE ' SQL: (%)', sql;
+	
+	FOR registro IN EXECUTE sql
+	LOOP
+	RETURN next registro;
+	end loop;
+	RETURN;
+
+END;
+$$;
+
+
+ALTER FUNCTION public.obtener_reporte_asistencia(id_persona_aux integer, fecha_inicio_aux date, fecha_fin_aux date) OWNER TO postgres;
+
+--
+-- TOC entry 196 (class 1255 OID 25196)
+-- Name: obtener_ultimo_codigo(character varying); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION obtener_ultimo_codigo(nombre_tabla character varying) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE	
+	codigo_secuencial INTEGER;
+	nro_filas	   INT;
+BEGIN 
+
+	IF(nombre_tabla = 'eventos') THEN
+	   SELECT last_value into codigo_secuencial 
+	   FROM eventos_id_evento_seq 
+	   ORDER BY last_value
+	   DESC LIMIT 1 OFFSET 0;
+
+	   SELECT COUNT(*) into nro_filas 
+	   FROM eventos;
+	   
+	ELSIF (nombre_tabla = 'personas_eventos_asistencia') THEN
+	   SELECT last_value into codigo_secuencial 
+	   FROM personas_eventos_asistencia_id_asistencia_seq 
+	   ORDER BY last_value
+	   DESC LIMIT 1 OFFSET 0;
+
+	   SELECT COUNT(*) into nro_filas 
+	   FROM personas_eventos_asistencia;
+	ELSIF (nombre_tabla = 'personas_huellas_digitales') THEN
+	   SELECT last_value into codigo_secuencial 
+	   FROM personas_huellas_digitales_id_huella_seq 
+	   ORDER BY last_value
+	   DESC LIMIT 1 OFFSET 0;
+
+	   SELECT COUNT(*) into nro_filas 
+	   FROM personas_huellas_digitales;
+
+	ELSIF (nombre_tabla = 'personas') THEN
+	   SELECT last_value into codigo_secuencial 
+	   FROM personas_id_persona_seq 
+	   ORDER BY last_value
+	   DESC LIMIT 1 OFFSET 0;
+
+	   SELECT COUNT(*) into nro_filas 
+	   FROM personas;
+
+	   --personas_eventos_permisos
+	ELSIF (nombre_tabla = 'personas_eventos_permisos') THEN
+	   SELECT last_value into codigo_secuencial 
+	   FROM personas_eventos_permisos_id_permiso_seq 
+	   ORDER BY last_value
+	   DESC LIMIT 1 OFFSET 0;
+
+	   SELECT COUNT(*) into nro_filas 
+	   FROM personas_eventos_permisos;
+	ELSIF (nombre_tabla = 'usuarios') THEN
+	   SELECT last_value into codigo_secuencial 
+	   FROM usuarios_id_usuario_seq 
+	   ORDER BY last_value
+	   DESC LIMIT 1 OFFSET 0;
+
+	   SELECT COUNT(*) into nro_filas 
+	   FROM usuarios;
+
+	END IF;
+
+   
+    	   
+   IF(nro_filas = 0 and codigo_secuencial = 1) THEN
+	codigo_secuencial := 1;
+   END IF;
+   RETURN codigo_secuencial;
+END;
+$$;
+
+
+ALTER FUNCTION public.obtener_ultimo_codigo(nombre_tabla character varying) OWNER TO postgres;
+
+--
+-- TOC entry 197 (class 1255 OID 25197)
+-- Name: obtenerfechaservidor(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION obtenerfechaservidor() RETURNS date
+    LANGUAGE plpgsql
+    AS $$
+
+BEGIN 
+   RETURN (SELECT NOW()::DATE) ;
+END;
+$$;
+
+
+ALTER FUNCTION public.obtenerfechaservidor() OWNER TO postgres;
+
+--
+-- TOC entry 200 (class 1255 OID 34559)
+-- Name: seguimiento_asistencia(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION seguimiento_asistencia() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE 
+	v_hora_inicio		TIME;
+	v_hora_fin		TIME;
+	v_hora_inicio_antes 	TIME;
+	v_hora_fin_retraso  	TIME;
+	v_tipo_evento		CHAR(1);
+BEGIN
+	--
+	-- Create a row in emp_audit to reflect the operation performed on emp,
+	-- make use of the special variable TG_OP to work out the operation.
+	--
+	IF (TG_OP = 'INSERT') THEN    
+		SELECT 	hora_inicio into v_hora_inicio			
+		FROM eventos
+		where id_evento = NEW.id_evento;
+
+		SELECT 	hora_fin INTO v_hora_fin			
+		FROM eventos
+		where id_evento = NEW.id_evento;
+
+		SELECT hora_inicio_antes INTO v_hora_inicio_antes			
+		FROM eventos
+		where id_evento = NEW.id_evento;
+
+		SELECT hora_fin_retraso INTO v_hora_fin_retraso
+		FROM eventos
+		where id_evento = NEW.id_evento;
+
+		SELECT codigo_tipo_evento INTO v_tipo_evento
+		FROM eventos
+		where id_evento = NEW.id_evento;
+		
+	    UPDATE personas_eventos_asistencia
+		set tipo_ingreso = CASE WHEN( v_tipo_evento IS NULL) THEN 'E' ELSE v_tipo_evento END,
+		    tipo_asistencia =  CASE WHEN (NEW.hora_registro >= v_hora_inicio_antes AND NEW.hora_registro < v_hora_inicio ) THEN 'A' 
+					WHEN (NEW.hora_registro >= v_hora_inicio AND NEW.hora_registro <= v_hora_fin ) THEN 'P'  ELSE 'R' END
+	    WHERE id_asistencia = NEW.id_asistencia;
+
+
+
+	    UPDATE personas_eventos_asistencia
+		SET codigo_estado = 'A'
+	    WHERE id_asistencia <> NEW.id_asistencia
+	    AND id_evento = NEW.id_evento
+	    AND id_persona = NEW.id_persona
+	    AND fecha_registro = NEW.fecha_registro;
+	    
+	    RETURN NEW;
+	-- ELSIF (TG_OP = 'UPDATE') THEN
+	--             INSERT INTO emp_audit SELECT 'U', now(), user, NEW.*;
+	--             RETURN NEW;
+	--         ELSIF (TG_OP = 'INSERT') THEN
+	--             INSERT INTO emp_audit SELECT 'I', now(), user, NEW.*;
+	--             RETURN NEW;
+	END IF;
+	RETURN NULL; -- result is ignored since this is an AFTER trigger
+END;
+$$;
+
+
+ALTER FUNCTION public.seguimiento_asistencia() OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- TOC entry 173 (class 1259 OID 34624)
+-- Name: eventos; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE eventos (
+    id_evento integer NOT NULL,
+    nombre_evento character varying(100) NOT NULL,
+    gestion integer,
+    codigo_estado character(1) DEFAULT 'A'::bpchar,
+    codigo_tipo_evento character(1) DEFAULT 'E'::bpchar,
+    control_lunes boolean,
+    control_martes boolean,
+    control_miercoles boolean,
+    control_jueves boolean,
+    control_viernes boolean,
+    control_sabado boolean,
+    control_domingo boolean,
+    hora_inicio time without time zone,
+    hora_fin time without time zone,
+    hora_inicio_antes time without time zone,
+    hora_fin_retraso time without time zone,
+    fecha_inicio date,
+    fecha_fin date,
+    descripcion text,
+    CONSTRAINT ch_codigo_estado CHECK ((codigo_estado = ANY (ARRAY['A'::bpchar, 'B'::bpchar, 'S'::bpchar]))),
+    CONSTRAINT ch_codigo_tipo_evento CHECK ((codigo_tipo_evento = ANY (ARRAY['E'::bpchar, 'S'::bpchar])))
+);
+
+
+ALTER TABLE public.eventos OWNER TO postgres;
+
+--
+-- TOC entry 172 (class 1259 OID 34622)
+-- Name: eventos_id_evento_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE eventos_id_evento_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.eventos_id_evento_seq OWNER TO postgres;
+
+--
+-- TOC entry 2040 (class 0 OID 0)
+-- Dependencies: 172
+-- Name: eventos_id_evento_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE eventos_id_evento_seq OWNED BY eventos.id_evento;
+
+
+--
+-- TOC entry 174 (class 1259 OID 34637)
+-- Name: eventos_personas; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE eventos_personas (
+    id_evento integer NOT NULL,
+    id_persona integer NOT NULL,
+    fecha_inicio date,
+    fecha_fin date
+);
+
+
+ALTER TABLE public.eventos_personas OWNER TO postgres;
+
+--
+-- TOC entry 169 (class 1259 OID 34596)
+-- Name: personas; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE personas (
+    id_persona integer NOT NULL,
+    ci character(10),
+    nombres character varying(50) NOT NULL,
+    apellidos character varying(50) NOT NULL,
+    sexo character(1),
+    celular character varying(10),
+    fecha_nacimiento date,
+    tipo_persona character(1),
+    ruta_fotografia character varying(100)
+);
+
+
+ALTER TABLE public.personas OWNER TO postgres;
+
+--
+-- TOC entry 176 (class 1259 OID 34654)
+-- Name: personas_eventos_asistencia; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE personas_eventos_asistencia (
+    id_asistencia integer NOT NULL,
+    id_evento integer,
+    id_persona integer,
+    fecha_registro date DEFAULT now(),
+    hora_registro time without time zone DEFAULT now(),
+    tipo_asistencia character(1) DEFAULT 'P'::bpchar,
+    tipo_ingreso character(1) DEFAULT 'E'::bpchar,
+    codigo_estado character(1) DEFAULT 'U'::bpchar
+);
+
+
+ALTER TABLE public.personas_eventos_asistencia OWNER TO postgres;
+
+--
+-- TOC entry 175 (class 1259 OID 34652)
+-- Name: personas_eventos_asistencia_id_asistencia_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE personas_eventos_asistencia_id_asistencia_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.personas_eventos_asistencia_id_asistencia_seq OWNER TO postgres;
+
+--
+-- TOC entry 2041 (class 0 OID 0)
+-- Dependencies: 175
+-- Name: personas_eventos_asistencia_id_asistencia_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE personas_eventos_asistencia_id_asistencia_seq OWNED BY personas_eventos_asistencia.id_asistencia;
+
+
+--
+-- TOC entry 180 (class 1259 OID 34690)
+-- Name: personas_eventos_permisos; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE personas_eventos_permisos (
+    id_permiso integer NOT NULL,
+    id_evento integer,
+    id_persona integer,
+    id_usuario integer,
+    fecha_registro date DEFAULT now(),
+    fecha_permiso date DEFAULT now(),
+    fecha_fin_permiso date,
+    tipo_permiso character(1),
+    motivo text
+);
+
+
+ALTER TABLE public.personas_eventos_permisos OWNER TO postgres;
+
+--
+-- TOC entry 179 (class 1259 OID 34688)
+-- Name: personas_eventos_permisos_id_permiso_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE personas_eventos_permisos_id_permiso_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.personas_eventos_permisos_id_permiso_seq OWNER TO postgres;
+
+--
+-- TOC entry 2042 (class 0 OID 0)
+-- Dependencies: 179
+-- Name: personas_eventos_permisos_id_permiso_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE personas_eventos_permisos_id_permiso_seq OWNED BY personas_eventos_permisos.id_permiso;
+
+
+--
+-- TOC entry 171 (class 1259 OID 34606)
+-- Name: personas_huellas_digitales; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE personas_huellas_digitales (
+    id_huella integer NOT NULL,
+    id_persona integer NOT NULL,
+    codigo_tipo_mano character(1) NOT NULL,
+    codigo_tipo_dedo character(1) NOT NULL,
+    huella_digital bytea NOT NULL,
+    observacion text
+);
+
+
+ALTER TABLE public.personas_huellas_digitales OWNER TO postgres;
+
+--
+-- TOC entry 170 (class 1259 OID 34604)
+-- Name: personas_huellas_digitales_id_huella_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE personas_huellas_digitales_id_huella_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.personas_huellas_digitales_id_huella_seq OWNER TO postgres;
+
+--
+-- TOC entry 2043 (class 0 OID 0)
+-- Dependencies: 170
+-- Name: personas_huellas_digitales_id_huella_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE personas_huellas_digitales_id_huella_seq OWNED BY personas_huellas_digitales.id_huella;
+
+
+--
+-- TOC entry 168 (class 1259 OID 34594)
+-- Name: personas_id_persona_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE personas_id_persona_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.personas_id_persona_seq OWNER TO postgres;
+
+--
+-- TOC entry 2044 (class 0 OID 0)
+-- Dependencies: 168
+-- Name: personas_id_persona_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE personas_id_persona_seq OWNED BY personas.id_persona;
+
+
+--
+-- TOC entry 178 (class 1259 OID 34679)
+-- Name: usuarios; Type: TABLE; Schema: public; Owner: postgres; Tablespace: 
+--
+
+CREATE TABLE usuarios (
+    id_usuario integer NOT NULL,
+    fecha_registro date DEFAULT now(),
+    nombre_usuario character varying(200) NOT NULL,
+    contrasenia character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.usuarios OWNER TO postgres;
+
+--
+-- TOC entry 177 (class 1259 OID 34677)
+-- Name: usuarios_id_usuario_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE usuarios_id_usuario_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.usuarios_id_usuario_seq OWNER TO postgres;
+
+--
+-- TOC entry 2045 (class 0 OID 0)
+-- Dependencies: 177
+-- Name: usuarios_id_usuario_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE usuarios_id_usuario_seq OWNED BY usuarios.id_usuario;
+
+
+--
+-- TOC entry 181 (class 1259 OID 42924)
+-- Name: vdiassemanaevento; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW vdiassemanaevento AS
+    (((((SELECT eventos.id_evento, 1 AS dia_semana, 'LUNES'::text AS dia FROM eventos WHERE (eventos.control_lunes = true) UNION SELECT eventos.id_evento, 2 AS dia_semana, 'MARTES'::text AS dia FROM eventos WHERE (eventos.control_martes = true)) UNION SELECT eventos.id_evento, 3 AS dia_semana, 'MIERCOLES'::text AS dia FROM eventos WHERE (eventos.control_miercoles = true)) UNION SELECT eventos.id_evento, 4 AS dia_semana, 'JUEVES'::text AS dia FROM eventos WHERE (eventos.control_jueves = true)) UNION SELECT eventos.id_evento, 5 AS dia_semana, 'VIERNES'::text AS dia FROM eventos WHERE (eventos.control_viernes = true)) UNION SELECT eventos.id_evento, 6 AS dia_semana, 'SABADO'::text AS dia FROM eventos WHERE (eventos.control_sabado = true)) UNION SELECT eventos.id_evento, 7 AS dia_semana, 'DOMINGO'::text AS dia FROM eventos WHERE (eventos.control_domingo = true) ORDER BY 2, 1;
+
+
+ALTER TABLE public.vdiassemanaevento OWNER TO postgres;
+
+--
+-- TOC entry 182 (class 1259 OID 42929)
+-- Name: vdiaspermisospersonaseventos; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW vdiaspermisospersonaseventos AS
+    SELECT v.fecha, v.dia_semana, v.id_evento, v.id_persona, vdse.dia FROM ((SELECT (generate_series.generate_series)::date AS fecha, date_part('isodow'::text, generate_series.generate_series) AS dia_semana, CASE WHEN ((generate_series.generate_series >= pep.fecha_permiso) AND (generate_series.generate_series <= pep.fecha_fin_permiso)) THEN pep.id_evento ELSE NULL::integer END AS id_evento, CASE WHEN ((generate_series.generate_series >= pep.fecha_permiso) AND (generate_series.generate_series <= pep.fecha_fin_permiso)) THEN pep.id_persona ELSE NULL::integer END AS id_persona FROM generate_series(((SELECT min(personas_eventos_permisos.fecha_permiso) AS min FROM personas_eventos_permisos))::timestamp with time zone, ((SELECT max(personas_eventos_permisos.fecha_fin_permiso) AS max FROM personas_eventos_permisos))::timestamp with time zone, '1 day'::interval) generate_series(generate_series), personas_eventos_permisos pep) v JOIN vdiassemanaevento vdse ON (((v.id_evento = vdse.id_evento) AND (v.dia_semana = (vdse.dia_semana)::double precision)))) WHERE (v.id_evento IS NOT NULL);
+
+
+ALTER TABLE public.vdiaspermisospersonaseventos OWNER TO postgres;
+
+--
+-- TOC entry 1970 (class 2604 OID 34627)
+-- Name: id_evento; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY eventos ALTER COLUMN id_evento SET DEFAULT nextval('eventos_id_evento_seq'::regclass);
+
+
+--
+-- TOC entry 1968 (class 2604 OID 34599)
+-- Name: id_persona; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas ALTER COLUMN id_persona SET DEFAULT nextval('personas_id_persona_seq'::regclass);
+
+
+--
+-- TOC entry 1975 (class 2604 OID 34657)
+-- Name: id_asistencia; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_eventos_asistencia ALTER COLUMN id_asistencia SET DEFAULT nextval('personas_eventos_asistencia_id_asistencia_seq'::regclass);
+
+
+--
+-- TOC entry 1983 (class 2604 OID 34693)
+-- Name: id_permiso; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_eventos_permisos ALTER COLUMN id_permiso SET DEFAULT nextval('personas_eventos_permisos_id_permiso_seq'::regclass);
+
+
+--
+-- TOC entry 1969 (class 2604 OID 34609)
+-- Name: id_huella; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_huellas_digitales ALTER COLUMN id_huella SET DEFAULT nextval('personas_huellas_digitales_id_huella_seq'::regclass);
+
+
+--
+-- TOC entry 1981 (class 2604 OID 34682)
+-- Name: id_usuario; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY usuarios ALTER COLUMN id_usuario SET DEFAULT nextval('usuarios_id_usuario_seq'::regclass);
+
+
+--
+-- TOC entry 2024 (class 0 OID 34624)
+-- Dependencies: 173
+-- Data for Name: eventos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY eventos (id_evento, nombre_evento, gestion, codigo_estado, codigo_tipo_evento, control_lunes, control_martes, control_miercoles, control_jueves, control_viernes, control_sabado, control_domingo, hora_inicio, hora_fin, hora_inicio_antes, hora_fin_retraso, fecha_inicio, fecha_fin, descripcion) FROM stdin;
+1	CENA PALABRA DE VIDA	2016	A	E	t	t	t	t	t	t	f	19:30:00	20:00:00	19:00:00	20:15:00	2016-01-01	2016-06-30	SADFSADF
+2	EVENTO CENA 2	2016	A	E	t	f	f	f	t	t	t	19:00:00	20:00:00	17:45:00	20:20:00	2016-06-01	2016-06-30	
+3	COMEDOR	2016	A	E	t	t	t	t	t	f	f	16:30:00	17:20:00	16:15:00	17:30:00	2016-06-01	2016-06-30	control de la comida del mes junio
+\.
+
+
+--
+-- TOC entry 2046 (class 0 OID 0)
+-- Dependencies: 172
+-- Name: eventos_id_evento_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('eventos_id_evento_seq', 3, true);
+
+
+--
+-- TOC entry 2025 (class 0 OID 34637)
+-- Dependencies: 174
+-- Data for Name: eventos_personas; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY eventos_personas (id_evento, id_persona, fecha_inicio, fecha_fin) FROM stdin;
+2	1	2016-06-01	2016-06-30
+2	2	2016-06-01	2016-06-30
+3	1	2016-06-01	2016-06-30
+3	3	2016-06-01	2016-06-30
+3	4	2016-06-01	2016-06-30
+2	3	2016-06-01	2016-06-30
+\.
+
+
+--
+-- TOC entry 2020 (class 0 OID 34596)
+-- Dependencies: 169
+-- Data for Name: personas; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY personas (id_persona, ci, nombres, apellidos, sexo, celular, fecha_nacimiento, tipo_persona, ruta_fotografia) FROM stdin;
+1	5680546   	Luis	Molina	F	73485632	2011-06-03	\N	\N
+4	5462654   	Ronald	Mamani Condo	F	54646	2011-06-01	\N	\N
+5	234234    	armando	montenegro	F	456464	2011-07-02	\N	3_Natural-Wa.jpg
+6	2536987   	Alenadria	Oropeza	F	45987987	2011-07-03	\N	_final.jpg
+7	8586798   	Veronica	Soledad	F	234234324	2016-07-02	\N	[large][AnimePaper]wallpapers_Elfen-Lied_ChaChaYue_48598.jpg
+8	654987    	Alejandro	Medinacelill	M	32432432	2006-07-02	\N	159.jpg
+9	86654546  	Orlando	Urriolagoitia	M	54654654	2004-07-04	\N	321.jpg
+2	4561236   	Alejandor	Mamani	M	21321313	2000-06-03	\N	4279090_b6fe90479e_b.jpg
+3	102563    	Miguel	Laime	M	723568	2010-06-03	\N	FondoD.jpg
+\.
+
+
+--
+-- TOC entry 2027 (class 0 OID 34654)
+-- Dependencies: 176
+-- Data for Name: personas_eventos_asistencia; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY personas_eventos_asistencia (id_asistencia, id_evento, id_persona, fecha_registro, hora_registro, tipo_asistencia, tipo_ingreso, codigo_estado) FROM stdin;
+30	2	2	2016-06-26	19:54:55	P	E	U
+2	2	2	2016-06-25	19:54:10.31	\N	\N	A
+3	2	2	2016-06-25	19:54:29.101	P	E	A
+4	2	2	2016-06-25	19:54:49.252	P	E	U
+24	2	2	2016-06-01	19:54:55	P	E	U
+25	2	2	2016-06-02	19:54:55	P	E	U
+26	2	2	2016-06-03	19:54:55	P	E	U
+27	2	2	2016-06-04	19:54:55	P	E	U
+28	2	2	2016-06-05	19:54:55	P	E	U
+32	2	2	2016-06-27	19:51:15	P	E	U
+31	2	2	2016-06-27	19:50:55	P	E	A
+21	3	4	2016-06-27	17:22:54.143	R	E	U
+19	3	4	2016-06-27	17:21:26.186	P	E	A
+22	3	3	2016-06-27	17:23:05.996	R	E	U
+20	3	3	2016-06-27	17:21:37.34	P	E	A
+18	3	3	2016-06-27	17:00:42.789	R	E	A
+12	3	3	2016-06-27	16:57:20.131	R	E	A
+13	3	3	2016-06-27	16:59:27.209	R	E	A
+14	3	3	2016-06-27	16:59:57.501	R	E	A
+15	3	3	2016-06-27	17:00:07.327	R	E	A
+16	3	3	2016-06-27	17:00:35.285	R	E	A
+17	3	3	2016-06-27	17:00:39.381	R	E	A
+\.
+
+
+--
+-- TOC entry 2047 (class 0 OID 0)
+-- Dependencies: 175
+-- Name: personas_eventos_asistencia_id_asistencia_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('personas_eventos_asistencia_id_asistencia_seq', 32, true);
+
+
+--
+-- TOC entry 2031 (class 0 OID 34690)
+-- Dependencies: 180
+-- Data for Name: personas_eventos_permisos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY personas_eventos_permisos (id_permiso, id_evento, id_persona, id_usuario, fecha_registro, fecha_permiso, fecha_fin_permiso, tipo_permiso, motivo) FROM stdin;
+1	3	1	\N	2016-06-27	2016-06-27	2016-06-27	S	visita familiar
+2	3	2	1	2016-06-27	2016-06-27	2016-06-30	S	prueba de datos
+3	3	3	1	2016-06-05	2016-06-05	2016-06-10	S	prueba de datos
+4	2	3	1	2016-06-05	2016-06-06	2016-06-10	S	prueba de datos
+\.
+
+
+--
+-- TOC entry 2048 (class 0 OID 0)
+-- Dependencies: 179
+-- Name: personas_eventos_permisos_id_permiso_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('personas_eventos_permisos_id_permiso_seq', 4, true);
+
+
+--
+-- TOC entry 2022 (class 0 OID 34606)
+-- Dependencies: 171
+-- Data for Name: personas_huellas_digitales; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY personas_huellas_digitales (id_huella, id_persona, codigo_tipo_mano, codigo_tipo_dedo, huella_digital, observacion) FROM stdin;
+1	3	P	D	\\xa7ff012d2201b40001f2001601b30001f8008b00a4000125012201f40001cb0025017900028200ba00b500021f0135019f000109018e00d10002820016015b00014701f400eb0001a4009900a200021a01b9009d00020301170148000198009300c4000130019e00c7000230012501320101b400b900e600013b019c00d400018200ee006e00019e00fa004b00019e0084007700010e010801470102a900c500570002cb00de00410001af00f300310002a900d1000501018d00e7003600010000ca002001014701c100380002c500dd004b010298000b01bd0001ed000701d60001c500ed00a7000287000501ae00011401f400a900023001ee00d700029e006f00a300013001ec00d000015201e600b1000282006200cb00013601d5009e00021700cc00910002dc0061009c00012b01280166000193001d0148010163010801222023250e0d00012620110e1a18070d020a171a11071e01242a28291e212622110d01212122070e080c042b09232b082c150b292c0f050b2628231f21201e001f1e17182028131809250006131a280b02241b19091f1f25130c171c00211e2213172621161c252608130a0b22280d0216170e0504082b0c1011052801220d0a150f251e12131e2001060e0a050a1c1a1f0123261e261910231e0e02202905291f21031f2522252006042629100e240a25210d05272411051d150c1801201f00022a072705261208190907022322021422291d1b23210309272a1216020b161a0022121723200126070a10070a14270d100529120d242414260b1c18110a21061f260e0b100d2a1411020c1a040c2128091e1e0607052b130520200b0a2928121923161310230818002007242528121a0a2a120c04121025250520120c1727022916062b2212122b192509100e240004112716181b10031e09260323081a0a280104131c270e121825000f0323050817210404131d2c0d2a03000b14032503012206261221121b09270a22041026072a121c0b161d190b12191f1f060900200419111416151b1e042816100a0e2a2b181d0f2914002b0d14250e012b101f1e051b23051429172c03220815190f0915031b2503060a160c1c141c1b1127142c1b0f1b15090f190f1f1b071b0e1d0909060b1c2c192c0914171b0d1d101d03151f15232c1f15100f001b271d070f061d27	
+2	3	P	D	\\xa7ff012e15019b00011a013a01f80002e7000c01fe0001e70001016100024101fa00ea0001f2000301d100010901fb00050101d6000d0154000293003401a400020e0137018300010e013501b5000203012101010101e1003b01750001140129018900021401db009a000241013401d80001f800e3007d00014701ff003a0001a4000d011e0101d100f6002701010c00ae0093000211009f00c80002140147014501022800e30061000198008800a60002f2008000c600011a01d1005e0001580189003301013b01bb00760001af00d200420001a900b200530001ba00de00260101a900a900f8000282007e005900011d008e005b0001d10092005501014701c2002701024701ab004e01019300df00de0001140110014600019800bf00b900013300c600c500016000db00e200012501ec00f50001e1000e01360101c5003301390101d60011012a26072729280d09090c22210a0803072b040602171a0b022711062b162d2c12131f13122b2a2b2623250d0c02040b01000d040506041a1d2c13241f1017080d17030e1007110426032715191206042a1202141c0800022b19181a1e0809010f1c1a1306120b171d2629231b15280f0a1c1e2a29101a1e1d221e2d2c060b2605152903110a00101c10031518280e1814000928142a05251b2b051f0617071c1725240b040b0f0e141d110a0d020102052d12062a1302031a0e1c290e17111f120626080c0f05201526282a280a09171e2c1f132b1f2b211e172713240f081c22122b06052c062420000c0b2b020f02261514202a120429142c022c0b031d0b0505000c070d03130b050a14101c1d1a1100101b24000e0e1728182d0b120120291007162c0d0720262b291a0700030c03040f101d0e1a1f02071d271d052909070429141a1928141e0c27060114220a0c2d130903251f242b2d012a152019101e240601041f042324202b01051b20010a1a27281c050820281a22050e2615260e1c210f0019140e0329181f20181c161219290d1010272d02000709270d27221d05281011242a142118222d06150e2c012c2400171821160b16010b0a120f1e111a21020a010808030c111722251316131b1f2520211d2018231f29000d111602181e0a0e2a1923202d0f001c26190e220f0c16061721252c19222506161f1b151b1919211b132313152215211b2b2419232c010c232b252d25162316161b2d0c160c	
+3	3	P	D	\\xa7ff012f0d01b9000209010c01c00001090110010c0101ed00f500f70001fe00dd00ea000109010f01f10002f800110199000103017800dd000209012701f500014400ef00b300011401f1000b0101ed00d200040101f20001019e000114015900d600011401b400b100024101e1005000019e00eb006a00028d00f900170101e10083002e01013b01d4001c0101d1001a013601013300bc00930001470197008b0001af0080000f01028200bd00590001a40022012f0101e700c0004c0001a9009100660001b400a70095000258015d009400012800b500480001af005100a10001ed0060006a00011d006e006c0001cb005200880001dc00b700e500011f0135010e01023e00af00e0000177009b00e000027100a700cc00014701b800f600010e01a400da0001820005017000027700f0005c00019e0010018700010301010179000225018500a600010c000a01010023252d2a262914191a1e181a252929272120110a102b1d220c0628231f1d062c1c162b0f181e26250a031c152c2d25272329262708052825130b11022c2a1f2203042d1003050c2c02052a10090c100f0b04232624082a2b270e000c0b2823270e15020a000912170e1c00062e16070d11030a0b01090f1a222002082d2b28290203130a2607211b010c2826062d0c2d161b180f0b032402131119242e1c151604230a0419020106280422210a050b231d201402110b1d210906062a290e07292e1d110514110f1e28270c2a1b18132804251b1e250e2c1019110e16240514242a0f0e2e201b1018050113030b250727002c0504030817072b1a272e16212b1813042e1f1c1b2d0f230e101a260e0d1f17262c2b1b1a271c2507092c0c1005001f20072e1108012c0a081518190804092e15140a0801090e1d1604292e221f210301091506100a280328190a092d2715112417281323262e1302151b042715102e212b1e0401020b16181c18101e172923071620002d0d2e08001905172514080d1d260d2403240a0309170d280717231d1b291c1622040014051c210c15040e2e20092a151a221b2c0f071f1903161e091014031f161c1d070e152d1413290d151e2309161a0201150f12281727091c0d220e0c0d27211e232e2118122612071c2012131317120b00150b01010e161012251223201e04150806080c0c18120d172e082c0206142812112406240c242c1412	
+4	3	I	D	\\xa7ff01202001d400012800020193000255000a018d00010901c1009c00011a01fe006900015500eb00db00029800e600a600021f01b3007f00026000aa007d00011401d500d900028700a0008100011a01cc00d800013b01c300410002fe008d008000016b00ae00f700018700d5001401024c01a400fc00023b01e500fe00014c01a0001a01018700b1001001018d00b4002501014101ad002d01018d00ff00de00025d013801d60002f2002a01c50001f2009e00a500021f012201ac0002f8000801390002f2009e009300016600860090000225018800cd00012b013201b100014400ac00090b070801021514100e0a081f1a1d0d191c1c0a00180a070a0d1605121314130509181f17181412151213101c1d17001c0d1c08130e181a0f111c070d08151312101d0a050b191d030706011600190a19030f131105031c140f171f120e0d07060302041a020308001f1109001a190d1a011d081116190816090104030a19070e0b06021410110b140e1e19171a150f1d070f0e041b0e0916181510160b05000506120f150e0906100b1f02101e110e0f1013110b060e1e1f0116170f09030d031d10091a06161a0b030f0516061e1d0f0b1e1c130b1411070c180118020607080c030106040518161f0c1b0b190b1e040c000106191100051a15110a0c000212110006030216011e031a041e0d1f0605170704120b131e0304121e140b0b1c0d0c0e19021b170217010804110611181f04011b1c0c150b030c11170f000b1d111a020c111e1c04071b061b081b0f171a1b0b041f1b0e17	
+5	3	I	D	\\xa7ff011ecc006500011f01080131000255000c01a400026301f8009e00029e00b4004600011a01bc004600026600e100da00024c01ef006d00021f011001e10001af00a1007900022501ba00bf00018700950098000130018200ab00017c00be00ee00023b01ad00dd000287009a00d700013b01ac00c400013b01b900f400018d00bb00d500018d00b400cf00013b011a018c0002d100830056000125011201780002d6001a01c500010600800069000177003601f1000106002701e300010000c0002401029800ee002801015d017700f100019800a3000504110d12131310100a0e130e12130a18150e0f0203191a120a141612101a080d0e0d120e100f10110e0f130c0b0214081711121a170b090d130e0a0f120005070017020918160711130314061200040d060f0a1908110f0d0f02161d0f0d101c1b091506130316060a0d0a090008061106100c1b1103070f0c100b11100b1817030e06150419171407110a09040a0b1b0d0610171409051d0e15050c090a0c080206170207130c0f0b1804130b060307050701111d0e0c0c180b1506021a0218051d130a031d101d0d1d0c1a06070408031601030016001b0e1c111d120a091c0d00150b001800100917161c0605011c0800011b121b0612030d081a030c151b131b0f081414000401190219060b041a141c1a1b1d0b05110c1c190a00140103091c120a07160510180a18190319141c17030107150f18020106000a0419161d1817011901	
+6	3	I	D	\\xa7ff011e6c00cf000114017500ce000260005e00f600011f01bc00b8000155000001e70002fe00b40026010198008400920002fe008700ec00021a01c9008b0002f200f800180101e100c4002e010200006f0049010187009c006800012d0060005101013b0162008d0001440073006301018d0098006701024c01a7005001015201b200520101a4005f00e200016b00c700f7000103015b00cc00026600ca00010102e7000e01bf00010301a800f400021f01500006010225012601d300014400540003010125011201a900014a004900ff00026b009e00191b0001191d161412111b1d1b020d0b00150a05021319021315171c1d0213000f0d01150f0b101113011a1714181012060e18071b13070116181d13100f19130700120a020007130215041702070516041a11051205110a0a1602011a1c0308060c0904100b05140518091607151d150f111b150a140a09110b1b07080c1b00140409141d0019151604100d19071b0101061900150e1803180114030a180f12041c14071d071d0100061901000e010e0306120b050906080e0c180016070d1115061005100a0507160301030b1907030b1b0b050d190d1b1c081703120d091a04030b1d1216130e0d1d0b02030c17081116031c0918130618040f0507061417120909170a0416170b070f0a0f19030e070e141a13030b180e08161a110704080108141c010c1a030503000c161c091c10161d0e1a08150c070c1c0c	
+7	4	P	I	\\xa7ff012b1201f60001e7006c00a50002fe005a00eb000136017000350101630178006b0002e100c6008200021f011e01ce0001f20000017900010e01da00d60002f2000f0140000177008300070102af005800b800021401d700780002140166005d0002ed00c000c50001f800bc00f10001e100af002501011700f5009c000109018b00350101ba00d6004900013001fa0071000160009d0009010111004c008200020901f5004200027100180159000171009300170101c0008d001901010600b3004e000247015c00450002e700d0003500018700b400590101cb00ac002d00015201e70029000136019200ae00014f006b00d3000225019e00b2000103018000e700025d014400f600023b018e009d00022d009c00de0002dc00470013010247018200860002e1004400d700022501ed001a190714232119152126050c131d1a0a190a040d1a1525021709150a262923260d1c1d2018091203121a0b01022217202427290428252422022a1019252a1219080e13170a241015220b1b1f1b1301260c14101a13201d1f11070f272a0b1418012902241b1d0e232a22171d150f210112100f080718031a070c000618171527212911140f0e270e28022723160d152409202201031901161417120a041c0c13110c12150a272721290d030a131f16040a022722020b0e211a24230125221e10192423291409100a03282916100f222111051413051b0b1626041e120c1b05140717190f0a2213090b21050707091f20010405130b262421282a280a1a270a0f22230f242423240b242a26050c1723052524161c0315270822261b2007130e26091d00082a0108110b29031006110a25250b041b27260e110c1d1b1702270e050806181321052905182008230f231a2826160c18010d2104282410272822141d291b152214201e19291c1e1a2701260d1228150e1118171f032503021e030d1b0c09141b0a2a15080e0c0504041f1e1521161c1f0d1f2a16000f290c08051b1c2216261b10080607060e0011000e1e0a011c0105291f06140807261c2705111b0f11041d0f061e0f1000060c161b061815000027161f1e001200	
+8	4	P	I	\\xa7ff01242a01f10001fe000001ee000109010c015b0001580117012b0101f2008e001101011a018800e200010901c500f100024a007000ff00011a010201500001a4001801cd000214019600d50001fe00aa00fb00010301a200bd0002e700b9007a00020000da009f00015801c700fd00024a00f000e9000214017300cb00020e01d100f90001550089002701012501c2007d0001af007f0032010236018c00b30001fe00f9008900019800b30065000106003f01cb00010e01aa005400010600d100c900029800c100c10001ba00b7001701020301d100df00028200c2001c0102f200c000200101fe00b200d200022d004201150101f2006400cb00011a01d100201f140d0f121f1d0f06201d120623110208151301101b1c181a050a1e1b0d18061e1304211c0c16121e210c0a0c14180a210f0b0b061d0b1d0f05111f0f1c0c211b0f1e101e1e211e1c0a16121011160407040b06210a11200f150407050e171f1209190b1200091d121d061d0401091f0b0d1a1c0e0b210e14061b0b0500011b0e22000b0a200b20121f060523001906100521101b050c0f1020060a1c13070405231605160f210b1e0322061c141a1201121b1009110c131d011e21161b0c170212210e0d0a232004071107231f041507130b1c161320060a1714070a1708131f070b1e0c00100f010601040f011b0300040a151d21110c0e230c1e0e0301210e170d102115201c1413050e18150b1c0d1d050c0d091b151f1b160c1401190b111e09160d221909171d071b171614090e1b1422011f01100e03102123140817180716140215050423180822090d080e02120910190312031f161803201a080e1a0d020e08120018020c18001e030f22100309171a19170a0d031d021a161a0319190e191b09020017221209141902221e09082318111a1908231a031315031608	
+9	4	P	I	\\xa7ff01249700ab000214012301ce0002f800b900a0000103013301d50002f200fd00280101280024017100021401ff008b00021a012e01db00013900a3007c0001f8009700cd00022b01af00630002e1000f019200010e01cf006b0002cb008f00d700023001bf0079000233003901e90001ed00b500f50002580195008d00010e0183007700020e017e00a700011a0196005d0001030102012e00019e00c1000a01020600e7004400015d0188004d0002fe00370195000103019c001c01015201e300380101cb00c400330101b400de00700002af00d300bf0002f200d5009600024400d7009f00024a000101450101dc00350103010139007800b900017100cb000703201f0d091d0c0b06070103010f0723130f030e0c14181108161000130a14220f0e0a080e080a11122104021f001102201b041b1c12141e200e1d0812211b0c0a08140900230013110f01171500021f0e09230d231f1d0b05020e190b1e021c161a16021119051e1f220712180208061d1f061f0c200609130a181d170605200e0d001c1a1a1022030c17080c110e120a100d201d1312111400081d0a110a10090e140d13200c2311081822011f0809020012020c1308200b19061b16060c1c041f0b13020c140e1201190b1d021d091e101e010b1e000a1703190911211c1c1011180e17060e0422041623121e0602120d02051d1a0d0e182302160d07190d1e02061d1416090b0c05151d15061723081e0b030b1b1a01060517161e0c181a09070b092010000c151b10011e1f170f192122050c14171023040f020b1f0521160410012003062005131804070105061507061817191d0f0b23141b220a15041a0401031e04030e150b151a231c0d210f1e191a1e211a2318221921101c09041e19171601191510011b0f16071b011815160b0518	
+10	4	P	I	\\xa7ff01301f01cd0001f2008700cb0001fe0070001f01014c010301120101ed006700f800013001ce00bc00021a01f600a000020e01f200fd0001f20080008f0002e1006b00e200011a01de00c000010901900038010206006600b5000109017400a60001f8000901c40002fe00e700c600025500eb00c0000109016900860001f200b8007000015801fc006b00018d00f40067000147010e014401013300f8004a0101e1002901a800014a00d8005c00019800a100500001b40098004a000100002e01b100014a00ec0030000158019000600101b400c900580101280093003800010600b000660101d1005c0003010236019100ee00020e01a000ea0002f200a300c200024a00ad00a00001af009f00950001d100aa00c100015a009400e7000209019200a2000228009600090102000016017300018700a800cc00014f001201360101330012013d0101e7001b01460001a4001a012e2d0f1024272228152e13141b170f0a191a2c242c2723280a10152d0a0521042223292625261a1f0c0d04091615000e08110d0829082b130f05292503072a22191f201e162e012410050d2914180e102801232c2608001b201d2c01162d2a232725022110060d11282c0f0e2a2824252705090122010127242921092b1412180017131827292d031219220923010204010c1d0b28240a062324222c2c050e060f060b02280923270e1b0129010d0e170e0a240505250422022a28272c252b2f26122426090c27260c080d262e030c110b2a2c29250804280c29181c2224132f050625121e16121a29112a041503142f17062f1c270a0613230900100401062b240d2c0a1819000f070f172b2611141c200b2c26012506140d25212216031d1e2a092a2104230a251b06022201080e0500061214131c090d0209070e0f270710240c240821282c0f29120812070a1e0b2710092c2d0723050c26181a1b2b0700000a10172b180228121f040c1213280c101b261921010819182f02231e1521230f171d0228052e0706252511081a07050b210b2203000f1b0618261a230a011117131507111a0b04160720161119030e1e2e181f06122b1c210c0512230f030f1e2d25190a1b191c121c0e2b27060723171414191d2a1a1c06261f1c081f111f25141e0309112a07261f1e2a210d2002062f202a071b0722172f1e07201508182a0f202e160b1d161e02031b2d001d21122f1b2f202d230e1d042e000b072d0e1e23162a1500200721110e2f16002d1b2e1b151b	
+11	4	P	I	\\xa7ff0123a400fb00010301830026010125010e01300101f2002601f60002fe008500e2000209011201cf00021401fa00f00001090177003101013001bb00c40001c5006a00f900011a01eb00ed000214019100d20001f8001e01460101ed009d00be0002e7003b01010101f2008a001001021a01ad00d100022d00d7009f00015d010a015d00015201f600880002930000015000019e008700b00001f800bf007c0001b400b60076000106006b004b010182008d004e010147017a00a10002fe006e0055010182006c005d01028200af006200010600a9005000010000ba001d0102e700cc00cb0002a4007300cb00020e01c100fe00024f00cb001c1b1b181617060a1214070120081c181d1e1008151a040b171d010f0b0d0e03100d0d150c020b10180722000421161d080d0b211b1910201f220f002115191809040b151c1919071b07070f0f0911131f00171e0004060519011116211a040d00100410210d180103060b08030520110d1a000b220a1c070f0408110a2009211312200d2210161e0a051f0f0415101501091b01222011170b1a0100090b0815011f131607091314000922080f22102122060b2006201c010008030a000d190f0f0b002002030a08020e1011220b0e0513170d11041a191f02060e06180f01040a101f0a00210520071f101a0816000a0f21111d1b0f2015081a0d161a1715170c0e0513020a0d17151605111f100608090d16141a161f0620131f0409150c03131d161218090e0a1a1d111217141d141c0f1f201900021f1e141f091712151d05081114091a111e1d12181f190902221b090c061a1e22050d1d1b1f131e0205121e0b171c09032022031c1f0c0a0d130c1f2117051205160c220c050e220e2005141902190a0201190c03121c020e121b0c1c0c190e	
+12	4	P	I	\\xa7ff01221401cf00012800f6008d0001c500ea009a00021d000d01f000022d00ea008c0002110094008e00022200e300d400012d00fe008300010c006800f20002090108013601023e006c00390102140186001d010209017600fc0001090194002f01010901bf006c000211006c00ff00015500eb00ff00013300bb00d200013300d3001b01013e00ba00a3000122009300aa00012d00ad001d0101440090006e00021700b0008f00011d0065001101010e01bc00140101f200b700000101f200dd0060010133001c019700011d00bd00330101f8006700da00020301ed006400010c00040163000206006100dd00015500bd00211e0f0c0104010702040f0815190c080201180f191a1317040708210d0b1f20081e1219180c1d151405170502070d151808151a1d19051607201d1203000b18071f1c070f210f1e12100b0c10030c1e0c2115120a0b170e121a0b151c01041f14170b0f141306110a181d0d0a0d011f13050120100617161a1111130e1f160e0d190420060013020306021c1d1a19101c041a1018210b081304021f040e1b1d130e181e0b19050e0d181114001c0b1a1c200a0f060217040d0c02171d0b0d1a09121b09141602200a0c1a0609100d0f020e1000010e1301150c06131e141a0c19110d121011070e0002131611171c1f15101d101b120e2009030a150a082114060412030001120611020b1e0b21091d1307171f0d08140e1105000400070c110a1d1b151b19061c09191e11181a0504020503111a030c141e051b0d19031a1e08110614031c21110b1114041a130915161f210517200416091a1b10001302161b1a09001e17090608051b0b21170c061e161b0a21160902091c	
+13	4	P	I	\\xa7ff0121f000de00022200ee00b000021100f1001601022d00c500d00002220003016201013e00b000bd00021100c200b200010c00e300ce00021d001f014801023300fc005b000200003e013801022d001d01d100021100ea00590102f2008a003201011401c500ec00012800140116010228009800180102030197005601020e01e500430102f200dc006001024a009d0011010203011c01df00021700e9004700016301b7006201020901d000490002b400a4004001020901d300320002ba00460117010122002b01ae00010600a500e6000122000f019e000106002301a10001ba003601a800020600b90010141c20150b1c1f130c1f1e201f050600070c12181a18161119040c091603050e03030703061312161a0d10190d07011c1e0e1d17110a1b080a020f17130b1c0408011e110d0d14041317191d03201e1d0519100e070706041206011500141d0e0000030001000b120209180b2019140b1f1b0f151c0e05080f101d0301170c0b1e140e0a0f07051712011f02000f150c080b010e0608120b07091a15071d06011c1520020e151f1110081b0501100e00061319120f1219071e151e1d071501170d0f000c02080211141b150f0b1e0913110215001e13080005040a012002070e010c191d0017041403001c1302040f071f0402071c0c0f1f091112001f061e17101b0b0d1d0c1102140a0210031b020109140519020020121012140f0e191d021d0c0a120a07200d0e120e120d10050a151e161c0920091400041b12001b000116060906181e181f1601181b1c1b200d03061607090f1405181f181c160d051e1a0509011a061a1f1a051a1d1a0d180d1a	
+14	4	P	I	\\xa7ff012392003f010247019300f70002030102010a01023900610044010230015100f8000214018400e700020301ad003f01020600e900d400012d00a800e800024400d000eb000139006300d700010901bf00a100012d00e400a500022200f10070000217001f01f20002dc00d6002d01012d00f1006200021100b800e30001ed0068000301020e01b8005301011d00b000ca0001ed00a20069000222009a005d00021d007400c40002fe0097007a0001280074004c01023b01b000110101dc00b800ff0001ed007b0050010293000901c00002280057004501017c001901b80002d6001801ab00021d004b003201022501a100620001d100c00015221c1922161e031f200d10151608111d1f1a1b1815190301051e21130612040a1709111d20182201081114060003211b111b081c0018161c03191e08141b091900090708050c0b050a1c1e020e040a071d05171b011a01090812051a0801111300120a140b1201060f09141d0c061a1a110f1a070c130f030019211a091107200c051105141c06011404051b1421120e1d001a0c0d0f1b0f020b18071f1f0c1b051c211906010a0e1f0714210402091e00011702071417131c0e0707200109081704170b151217140c0312061b0401070b110b131a0f090c101e12131912080b220b0d000f080a200d091d0e200001002100121a121912001b021d021b111703060b161e04060103040a140d1515101c120e090f111d0b0b1022100d221a021f0d17182010170b1d0d1418131b0211021f110a1e06101613030c18091f00050d160c15141d200b180d0f07050b030121011810210a0f0e0c220e0c1415060217150c1613020214142213090a181716170c0a16201513070516130e04161216	
+\.
+
+
+--
+-- TOC entry 2049 (class 0 OID 0)
+-- Dependencies: 170
+-- Name: personas_huellas_digitales_id_huella_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('personas_huellas_digitales_id_huella_seq', 14, true);
+
+
+--
+-- TOC entry 2050 (class 0 OID 0)
+-- Dependencies: 168
+-- Name: personas_id_persona_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('personas_id_persona_seq', 9, true);
+
+
+--
+-- TOC entry 2029 (class 0 OID 34679)
+-- Dependencies: 178
+-- Data for Name: usuarios; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY usuarios (id_usuario, fecha_registro, nombre_usuario, contrasenia) FROM stdin;
+1	\N	rosmeri	rosmeri
+\.
+
+
+--
+-- TOC entry 2051 (class 0 OID 0)
+-- Dependencies: 177
+-- Name: usuarios_id_usuario_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('usuarios_id_usuario_seq', 1, true);
+
+
+--
+-- TOC entry 1995 (class 2606 OID 34636)
+-- Name: pk_eventos; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY eventos
+    ADD CONSTRAINT pk_eventos PRIMARY KEY (id_evento);
+
+
+--
+-- TOC entry 1997 (class 2606 OID 34641)
+-- Name: pk_eventos_personas; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY eventos_personas
+    ADD CONSTRAINT pk_eventos_personas PRIMARY KEY (id_evento, id_persona);
+
+
+--
+-- TOC entry 1987 (class 2606 OID 34601)
+-- Name: pk_personas; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY personas
+    ADD CONSTRAINT pk_personas PRIMARY KEY (id_persona);
+
+
+--
+-- TOC entry 1999 (class 2606 OID 34664)
+-- Name: pk_personas_eventos_asistencia; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY personas_eventos_asistencia
+    ADD CONSTRAINT pk_personas_eventos_asistencia PRIMARY KEY (id_asistencia);
+
+
+--
+-- TOC entry 2007 (class 2606 OID 34700)
+-- Name: pk_personas_eventos_permisos; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY personas_eventos_permisos
+    ADD CONSTRAINT pk_personas_eventos_permisos PRIMARY KEY (id_permiso);
+
+
+--
+-- TOC entry 1991 (class 2606 OID 34614)
+-- Name: pk_personas_huellas_digitales; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY personas_huellas_digitales
+    ADD CONSTRAINT pk_personas_huellas_digitales PRIMARY KEY (id_huella);
+
+
+--
+-- TOC entry 2003 (class 2606 OID 34685)
+-- Name: pk_usuarios; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY usuarios
+    ADD CONSTRAINT pk_usuarios PRIMARY KEY (id_usuario);
+
+
+--
+-- TOC entry 1989 (class 2606 OID 34603)
+-- Name: u_ci_nombrecompleto; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY personas
+    ADD CONSTRAINT u_ci_nombrecompleto UNIQUE (ci, nombres, apellidos);
+
+
+--
+-- TOC entry 1993 (class 2606 OID 34616)
+-- Name: u_huella_persona; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY personas_huellas_digitales
+    ADD CONSTRAINT u_huella_persona UNIQUE (huella_digital);
+
+
+--
+-- TOC entry 2001 (class 2606 OID 34666)
+-- Name: u_persona_evento_fecha_hora; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY personas_eventos_asistencia
+    ADD CONSTRAINT u_persona_evento_fecha_hora UNIQUE (id_evento, id_persona, fecha_registro, hora_registro);
+
+
+--
+-- TOC entry 2009 (class 2606 OID 34702)
+-- Name: u_persona_evento_permiso; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY personas_eventos_permisos
+    ADD CONSTRAINT u_persona_evento_permiso UNIQUE (id_evento, id_persona, fecha_permiso);
+
+
+--
+-- TOC entry 2005 (class 2606 OID 34687)
+-- Name: usuarios_nombre_usuario_key; Type: CONSTRAINT; Schema: public; Owner: postgres; Tablespace: 
+--
+
+ALTER TABLE ONLY usuarios
+    ADD CONSTRAINT usuarios_nombre_usuario_key UNIQUE (nombre_usuario);
+
+
+--
+-- TOC entry 2018 (class 2620 OID 34719)
+-- Name: t_seguimiento_asistencia; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER t_seguimiento_asistencia AFTER INSERT ON personas_eventos_asistencia FOR EACH ROW EXECUTE PROCEDURE seguimiento_asistencia();
+
+
+--
+-- TOC entry 2011 (class 2606 OID 34642)
+-- Name: fk_eventos_personas_eventos; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY eventos_personas
+    ADD CONSTRAINT fk_eventos_personas_eventos FOREIGN KEY (id_evento) REFERENCES eventos(id_evento);
+
+
+--
+-- TOC entry 2012 (class 2606 OID 34647)
+-- Name: fk_eventos_personas_personas; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY eventos_personas
+    ADD CONSTRAINT fk_eventos_personas_personas FOREIGN KEY (id_persona) REFERENCES personas(id_persona);
+
+
+--
+-- TOC entry 2010 (class 2606 OID 34617)
+-- Name: fk_personas_huellas_digitales01; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_huellas_digitales
+    ADD CONSTRAINT fk_personas_huellas_digitales01 FOREIGN KEY (id_persona) REFERENCES personas(id_persona);
+
+
+--
+-- TOC entry 2014 (class 2606 OID 34672)
+-- Name: pk_evento_asistencias_eventos; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_eventos_asistencia
+    ADD CONSTRAINT pk_evento_asistencias_eventos FOREIGN KEY (id_evento) REFERENCES eventos(id_evento);
+
+
+--
+-- TOC entry 2016 (class 2606 OID 34708)
+-- Name: pk_evento_asistencias_permisos_eventos; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_eventos_permisos
+    ADD CONSTRAINT pk_evento_asistencias_permisos_eventos FOREIGN KEY (id_evento) REFERENCES eventos(id_evento);
+
+
+--
+-- TOC entry 2015 (class 2606 OID 34703)
+-- Name: pk_evento_asistencias_permisos_personas01; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_eventos_permisos
+    ADD CONSTRAINT pk_evento_asistencias_permisos_personas01 FOREIGN KEY (id_persona) REFERENCES personas(id_persona);
+
+
+--
+-- TOC entry 2017 (class 2606 OID 34713)
+-- Name: pk_evento_asistencias_permisos_usuarios; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_eventos_permisos
+    ADD CONSTRAINT pk_evento_asistencias_permisos_usuarios FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario);
+
+
+--
+-- TOC entry 2013 (class 2606 OID 34667)
+-- Name: pk_evento_asistencias_personas01; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY personas_eventos_asistencia
+    ADD CONSTRAINT pk_evento_asistencias_personas01 FOREIGN KEY (id_persona) REFERENCES personas(id_persona);
+
+
+--
+-- TOC entry 2038 (class 0 OID 0)
+-- Dependencies: 5
+-- Name: public; Type: ACL; Schema: -; Owner: postgres
+--
+
+REVOKE ALL ON SCHEMA public FROM PUBLIC;
+REVOKE ALL ON SCHEMA public FROM postgres;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO PUBLIC;
+
+
+-- Completed on 2016-07-25 23:02:39
+
+--
+-- PostgreSQL database dump complete
+--
+

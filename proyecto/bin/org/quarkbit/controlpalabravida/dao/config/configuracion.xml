@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+	<properties resource="org/quarkbit/controlpalabravida/dao/config/configuracionInicial.properties"/>
+	<environments default="development">
+		<environment id="development">
+			<transactionManager type="JDBC" />
+			<dataSource type="POOLED">
+				<property name="driver" value="${database.driver}" />
+				<property name="url" value="${database.url}" />
+				<property name="username" value="${database.username}" />
+				<property name="password" value="${database.password}" />
+			</dataSource>
+		</environment>
+	</environments>
+	
+	<mappers>
+
+		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/UsuarioMapper.xml" />		
+		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/PersonaHuellaDigitalMapper.xml" />
+		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/PersonaMapper.xml" />
+		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/EventoMapper.xml" />		
+		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/EventoPersonaMapper.xml" />		
+		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/PersonaEventoAsistenciaMapper.xml" />
+		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/PersonaEventoPermisosMapper.xml" />		
+		
+<!-- 		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/ProfesionMapper.xml" /> -->
+<!-- 		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/CargoMapper.xml" /> -->
+<!-- 		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/EspacioFisicoMapper.xml" /> -->
+<!-- 		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/ResponsableMapper.xml" /> -->
+<!-- 		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/FuncionarioMapper.xml" /> -->
+<!-- 		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/PersonaMapper.xml" /> -->
+<!-- 		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/UsuarioMapper.xml" /> -->
+<!-- 		<mapper resource="org/quarkbit/controlpalabravida/dao/persistence/FuncionarioContratacionMapper.xml" /> -->
+		
+
+	</mappers>
+</configuration>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE generatorConfiguration
+  PUBLIC "-//mybatis.org//DTD MyBatis Generator Configuration 1.0//EN"
+  "http://mybatis.org/dtd/mybatis-generator-config_1_0.dtd">
+
+<generatorConfiguration>
+  <classPathEntry location="D:\Proyectos\RecursosFisicos\Librerias\postgresql-9.4-1201.jdbc4.jar" />
+
+  <context id="DB2Tables" targetRuntime="MyBatis3">
+    <jdbcConnection driverClass="org.postgresql.Driver"
+        connectionURL="jdbc:postgresql://localhost:5432/control_palabra_vida"
+        userId="postgres"
+        password="postgres">
+    </jdbcConnection>
+
+    <javaTypeResolver >
+      <property name="forceBigDecimals" value="false" />
+    </javaTypeResolver>
+
+    <javaModelGenerator targetPackage="org.quarkbit.controlpalabravida.dao.domain" targetProject="D:\Proyectos\ControlPalabradeVida\Proyecto\src">
+      <property name="enableSubPackages" value="true" />
+      <property name="trimStrings" value="true" />
+    </javaModelGenerator>
+
+    <sqlMapGenerator targetPackage="org.quarkbit.controlpalabravida.dao.persistence"  targetProject="D:\Proyectos\ControlPalabradeVida\Proyecto\src">
+      <property name="enableSubPackages" value="true" />
+    </sqlMapGenerator>
+
+    <javaClientGenerator type="XMLMAPPER" targetPackage="org.quarkbit.controlpalabravida.dao.persistence"  targetProject="D:\Proyectos\ControlPalabradeVida\Proyecto\src">
+      <property name="enableSubPackages" value="true" />
+    </javaClientGenerator>
+
+<!-- 	<table tableName="funcionarioscontrataciones" domainObjectName="FuncionarioContratacion" >
+      	<property name="useActualColumnNames" value="true"/>      
+      	<columnOverride column="id_contrato" property="idContrato" />
+      	<columnOverride column="codigo_contrato" property="codigoContrato" />      	
+		<columnOverride column="fecha_registro" property="fechaRegistro" />      	
+		<columnOverride column="fecha_contrato" property="fechaContrato" />
+		<columnOverride column="fecha_culminacion" property="fechaCulminacion" />
+		<columnOverride column="codigo_estado" property="codigoEstado" />
+		<columnOverride column="id_cargo" property="idCargo" />
+		<columnOverride column="tipo_asignacion" property="tipoAsignacion" />
+		<columnOverride column="lugar_asignacion" property="lugarAsignacion" />
+		<columnOverride column="id_usuario" property="idUsuario" />
+		<columnOverride column="id_persona" property="idPersona" />
+		<columnOverride column="observaciones" property="observaciones" />
+    </table> -->
+	
+<!-- 	<table tableName="personas" domainObjectName="Persona" > -->
+<!--       	<property name="useActualColumnNames" value="true"/>       -->
+<!--       	<columnOverride column="id_persona" property="idPersona" /> -->
+<!--       	<columnOverride column="fecha_nacimiento" property="fechaNacimiento" />      	 -->
+<!-- 		<columnOverride column="tipo_persona" property="tipoPersona" />    	 -->
+<!-- 		<columnOverride column="ruta_fotografia" property="rutaFotografia" />    	 -->
+		
+<!--     </table> -->
+<!--     <table tableName="personas_huellas_digitales" domainObjectName="PersonaHuellaDigital" > -->
+<!--       	<property name="useActualColumnNames" value="true"/>       -->
+<!--       	<columnOverride column="id_huella" property="idHuella" /> -->
+<!--       	<columnOverride column="id_persona" property="idPersona" />      	      	 -->
+<!-- 		<columnOverride column="codigo_tipo_mano" property="codigoTipoMano" /> -->
+<!-- 		<columnOverride column="codigo_tipo_dedo" property="codigoTipoDedo" />    	 -->
+<!-- 		<columnOverride column="huella_digital" property="huellaDigital" />    	 -->
+		
+<!--     </table> -->
+<!--     <table tableName="Eventos" domainObjectName="Evento" > -->
+<!--       	<property name="useActualColumnNames" value="true"/>       -->
+<!--       	<columnOverride column="id_evento" property="idEvento" /> -->
+<!--       	<columnOverride column="nombre_evento" property="nombreEvento" />      	 -->
+<!-- 		<columnOverride column="codigo_estado" property="codigoEstado" />    	 -->
+<!-- 		<columnOverride column="control_lunes" property="controlLunes" /> -->
+<!-- 		<columnOverride column="control_martes" property="controlMartes" /> -->
+<!-- 		<columnOverride column="control_miercoles" property="controlMiercoles" /> -->
+<!-- 		<columnOverride column="control_jueves" property="controlJueves" /> -->
+<!-- 		<columnOverride column="control_viernes" property="controlViernes" /> -->
+<!-- 		<columnOverride column="control_sabado" property="controlSabado" /> -->
+<!-- 		<columnOverride column="control_domingo" property="controlDomingo" /> -->
+<!-- 		<columnOverride column="hora_inicio" property="horaInicio" /> -->
+<!-- 		<columnOverride column="hora_fin" property="horaFin" /> -->
+<!-- 		<columnOverride column="hora_inicio_antes" property="horaInicioAntes" /> -->
+<!-- 		<columnOverride column="hora_fin_retraso" property="horaFinRetraso" /> -->
+<!-- 		<columnOverride column="fecha_inicio" property="fechaInicio" /> -->
+<!-- 		<columnOverride column="fecha_fin" property="fechaFin" />    	 -->
+		
+<!--     </table> -->
+<!--     <table tableName="personas_eventos_asistencia" domainObjectName="PersonaEventoAsistencia" > -->
+<!--       	<property name="useActualColumnNames" value="true"/>       -->
+<!--       	<columnOverride column="id_asistencia" property="idAsistencia" /> -->
+<!--       	<columnOverride column="id_evento" property="idEvento" />		    	 -->
+<!-- 		<columnOverride column="id_persona" property="idPersona" />   -->
+<!-- 		<columnOverride column="fecha_registro" property="fechaRegistro" /> -->
+<!-- 		<columnOverride column="hora_registro" property="horaRegistro" /> -->
+<!-- 		<columnOverride column="tipo_asistencia" property="tipoAsistencia" /> -->
+<!-- 		<columnOverride column="tipo_ingreso" property="tipoIngreso" />		 -->
+<!--     </table> -->
+    
+<!--     <table tableName="usuarios" domainObjectName="Usuario" > -->
+<!--       	<property name="useActualColumnNames" value="true"/>       -->
+<!--       	<columnOverride column="id_usuario" property="idUsuario" /> -->
+<!--       	<columnOverride column="fecha_registro" property="fechaRegistro" />      	 -->
+<!-- 		<columnOverride column="nombre_usuario" property="nombreUsuario" /> -->
+<!-- 	</table> -->
+	
+<!-- 	 <table tableName="eventos_personas" domainObjectName="EventoPersona" > -->
+<!--       	<property name="useActualColumnNames" value="true"/>       -->
+<!--       	<columnOverride column="id_evento" property="idEvento" /> -->
+<!--       	<columnOverride column="id_persona" property="idPersona" />      	 -->
+<!-- 		<columnOverride column="fecha_inicio" property="fechaInicio" /> -->
+<!-- 		<columnOverride column="fecha_fin" property="fechaFin" /> -->
+<!-- 	</table> -->
+	
+	<table tableName="personas_eventos_permisos" domainObjectName="PersonaEventoPermisos" >
+      	<property name="useActualColumnNames" value="true"/>      
+      	<columnOverride column="id_permiso" property="id_permiso" />
+      	<columnOverride column="id_evento" property="id_evento" />      	
+		<columnOverride column="id_persona" property="id_persona" />
+		<columnOverride column="id_usuario" property="id_usuario" />
+		<columnOverride column="fecha_registro" property="fecha_registro" />
+		<columnOverride column="fecha_permiso" property="fecha_permiso" />
+		<columnOverride column="fecha_fin_permiso" property="fechaFinPermiso" />
+		<columnOverride column="tipo_permiso" property="tipo_permiso" />
+	</table>		
+	
+  </context>
+</generatorConfiguration>
+<!-- java -jar mybatis-generator-core-1.3.2.jar -configfile  D:\Proyectos\ControlPalabradeVida\proyecto\src\org\quarkbit\controlpalabravida\utils\mybator\generatorConfig.xml -overwrite -->

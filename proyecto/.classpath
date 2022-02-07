@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/jre1.8.0_321"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/GrFingerJava.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/DateChooser.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/jcalendar-1.4.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/joda-time-2.3.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/nimrodlf-1.2a.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/postgresql-42.3.1.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/mybatis-3.2.5-SNAPSHOT.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/jasperreports-5.1.0.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/log4j-1.2.15.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/commons-beanutils-1.8.2.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/hibernate3.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/iText-2.1.7.js2.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/commons-logging-1.1.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/commons-collections-3.2.1.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/commons-digester-2.1.jar"/>
+	<classpathentry kind="lib" path="D:/Proyectos/ControlPalabradeVida/Ejecutable/groovy-all-2.0.1.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
