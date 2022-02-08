@@ -1,6 +1,11 @@
-# ControlPalabradeVida
- ![Sistema de gestión de Usuarios](/Documentacion/Finger_reader.jpg)
+# Sistema de Control de Asistencias
+
+ <p align="center">
+  <img src="/Documentacion/Finger_reader.jpg">
+</p>
+ 
  Sistema de control y seguimiento de asistencia a actividades academicas en el instituto biblico **Palabra de Vida Cochabamba**
+ 
  System of control and monitoring of assistance to academic activities in the biblical institute **Palabra de Vida Cochabamba**
 
 
@@ -9,31 +14,54 @@
  ### System Modules
  - User Authentication.- Login for acces
  
- ![Sistema de gestión de Usuarios](/Documentacion/loguin.png)
+ <p align="center">
+  <img src="/Documentacion/loguin.png">
+</p>
  
 - Person Registration.- Register data information about the students
 
-![Sistema de registro de personas](/Documentacion/person.png)
 
-- Fingerprint Registration - You can add thre different fingers or the same finger
+ <p align="center">
+  <img src="/Documentacion/person.png">
+</p>
 
-![Modulo de lectura y registro de huellas digitales](/Documentacion/digital_fingers.png)
+- **Fingerprint Registration** - You can add thre different fingers or the same finger
+
+
+<p align="center">
+  <img src="/Documentacion/digital_fingers.png">
+</p>
 
 - Events Registration.- Add all the activities you want to control, you can configure a time before the event stars and you can add an extra time to penalize delays 
 
-![Sistema de gestión de Usuarios](/Documentacion/events.png)
+<p align="center">
+  <img src="/Documentacion/events.png">
+</p>
 
 - Permission Registration.- You can register permission for students when they have an extra activities outside of the Institute, that does not allowed them to be present in the event.
 
-![Sistema de gestión de Usuarios](/Documentacion/permision.png)
+<p align="center">
+  <img src="/Documentacion/permision.png">
+</p>
+
+- Control of Activities.- When the activity is running on the scheduled time, the students have to put their finger to be registered on the event
+
+<p align="center">
+  <img src="/Documentacion/control.png">
+</p>
 
 - Reporting by Person.- You can search a student and get the information about and academic activitie or event.
 
-![Sistema de gestión de Usuarios](/Documentacion/reporting1.png)
+<p align="center">
+  <img src="/Documentacion/reporting1.png">
+</p>
 
 - General Report by Person for all events.- You can see all the records of the entries in time, delay, absences or permissions of all the activities of a student 
 
-![Sistema de gestión de Usuarios](/Documentacion/reporting2.png)
+
+<p align="center">
+  <img src="/Documentacion/reporting2.png">
+</p>
 
 ### FingerPrint Reader Models suportss
 
