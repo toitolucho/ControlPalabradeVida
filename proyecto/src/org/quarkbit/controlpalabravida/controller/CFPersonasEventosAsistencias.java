@@ -323,7 +323,8 @@ public class CFPersonasEventosAsistencias implements IStatusEventListener, IImag
 							ui.getLblLblimagen().updateUI();
 					} catch (Exception e1) {
 						// TODO Auto-generated catch block
-						JOptionPane.showMessageDialog(ui, e1.getMessage());
+						//JOptionPane.showMessageDialog(ui, e1.getMessage());
+						
 					}
 	                   
 	                   

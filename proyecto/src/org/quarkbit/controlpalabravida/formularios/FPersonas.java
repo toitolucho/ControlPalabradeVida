@@ -120,7 +120,7 @@ public class FPersonas extends JDialog {
 		super(formPadre, true);
 		setTitle("Personas Huellas Digitales");
 		setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-		setBounds(100, 100, 469, 474);
+		setBounds(100, 100, 1069, 674);
 		
 		JTabbedPane tabbedPane = new JTabbedPane(JTabbedPane.TOP);
 		getContentPane().add(tabbedPane, BorderLayout.CENTER);
